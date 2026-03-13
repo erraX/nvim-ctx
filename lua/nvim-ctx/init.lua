@@ -119,16 +119,15 @@ local function resolve_selection(opts)
   if opts and opts.line1 and opts.line2 and opts.line1 > 0 and opts.line2 > 0 then
     local start_line = math.min(opts.line1, opts.line2)
     local end_line = math.max(opts.line1, opts.line2)
-    return start_line, end_line
+    return start_line, end_line, true
   end
 
   local start_line, end_line = selection_from_marks()
   if start_line and end_line then
-    return start_line, end_line
+    return start_line, end_line, true
   end
 
-  local current_line = vim.api.nvim_win_get_cursor(0)[1]
-  return current_line, current_line
+  return nil, nil, false
 end
 
 local function build_reference(bufname, start_line, end_line, opts)
@@ -141,13 +140,15 @@ local function build_reference(bufname, start_line, end_line, opts)
   end
 
   local path = resolve_path((opts and opts.path_mode) or cfg.path_mode, bufname)
-  local range = line_range(start_line, end_line)
+  local has_range = start_line ~= nil and end_line ~= nil
+  local range = has_range and line_range(start_line, end_line) or ''
 
   return render_template(template, {
     path = path,
-    start_line = start_line,
-    end_line = end_line,
+    start_line = start_line or '',
+    end_line = end_line or '',
     range = range,
+    line_suffix = has_range and ('#' .. range) or '',
   })
 end
 
@@ -257,19 +258,7 @@ function M.send_selection(opts)
     return
   end
 
-  local start_line, end_line_or_err, maybe_err = resolve_selection(opts)
-  local end_line = end_line_or_err
-  local selection_err = maybe_err
-
-  if not start_line then
-    notify(end_line_or_err, vim.log.levels.ERROR)
-    return
-  end
-
-  if selection_err then
-    notify(selection_err, vim.log.levels.ERROR)
-    return
-  end
+  local start_line, end_line, has_range = resolve_selection(opts)
 
   local reference, ref_err = build_reference(bufname, start_line, end_line, opts)
   if not reference then

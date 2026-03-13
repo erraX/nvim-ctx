@@ -10,6 +10,12 @@ Default output:
 
 The generated reference is also copied to the system clipboard by default, so you can paste it manually if `kitty` delivery fails.
 
+When there is no visual selection, `nvim-ctx` sends file-only context:
+
+```text
+@path/to/file
+```
+
 ## Requirements
 
 - Neovim `0.10+`
@@ -75,8 +81,8 @@ require('nvim-ctx').setup({
     register = '+',
   },
   formatters = {
-    codex = '@{{path}}#{{range}}',
-    claude = '@{{path}}#{{range}}',
+    codex = '@{{path}}{{line_suffix}}',
+    claude = '@{{path}}{{line_suffix}}',
     custom = 'file={{path}} lines={{start_line}}-{{end_line}}',
   },
   kitty = {
@@ -91,6 +97,7 @@ Template variables:
 - `start_line`
 - `end_line`
 - `range`
+- `line_suffix`
 
 ## Commands
 

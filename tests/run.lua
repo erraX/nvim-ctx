@@ -46,9 +46,9 @@ end)
 
 test('render_template replaces placeholders', function()
   eq(
-    nvim_ctx._test.render_template('@{{path}}#{{range}}', {
+    nvim_ctx._test.render_template('@{{path}}{{line_suffix}}', {
       path = 'lua/mod.lua',
-      range = '5-9',
+      line_suffix = '#5-9',
     }),
     '@lua/mod.lua#5-9'
   )
@@ -103,24 +103,26 @@ test('build_reference uses configured formatter preset', function()
 end)
 
 test('resolve_selection uses explicit command range', function()
-  local start_line, end_line = nvim_ctx._test.resolve_selection({
+  local start_line, end_line, has_range = nvim_ctx._test.resolve_selection({
     line1 = 8,
     line2 = 3,
   })
 
   eq(start_line, 3)
   eq(end_line, 8)
+  eq(has_range, true)
 end)
 
-test('resolve_selection falls back to current line in normal mode', function()
+test('resolve_selection returns file-only context in normal mode', function()
   vim.cmd.enew()
   vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'one', 'two', 'three' })
   vim.api.nvim_win_set_cursor(0, { 2, 0 })
 
-  local start_line, end_line = nvim_ctx._test.resolve_selection({})
+  local start_line, end_line, has_range = nvim_ctx._test.resolve_selection({})
 
-  eq(start_line, 2)
-  eq(end_line, 2)
+  eq(start_line, nil)
+  eq(end_line, nil)
+  eq(has_range, false)
 
   vim.cmd.bdelete({ bang = true })
 end)
@@ -271,6 +273,92 @@ test('send_selection reuses cached kitty target and sends reference text', funct
   eq(sent[1], '@tests/tmp-send.lua#2-3')
   eq(clipboard['+'], '@tests/tmp-send.lua#2-3')
   ok(nvim_ctx._state.target ~= nil, 'target should be cached after selection')
+
+  vim.system = original_system
+  vim.notify = original_notify
+  vim.ui.select = original_select
+  vim.fn.setreg = original_setreg
+  vim.cmd.bdelete({ bang = true })
+  vim.fn.delete(temp)
+end)
+
+test('send_selection sends file-only context in normal mode', function()
+  nvim_ctx._test.reset_state()
+
+  local temp = vim.fs.joinpath(vim.uv.cwd(), 'tests', 'tmp-send-normal.lua')
+  vim.fn.writefile({ 'one', 'two', 'three' }, temp)
+  vim.cmd.edit(temp)
+  vim.api.nvim_win_set_cursor(0, { 2, 0 })
+  vim.api.nvim_buf_del_mark(0, '<')
+  vim.api.nvim_buf_del_mark(0, '>')
+
+  local sent = {}
+  local original_system = vim.system
+  local original_notify = vim.notify
+  local original_select = vim.ui.select
+  local original_setreg = vim.fn.setreg
+  local clipboard = {}
+
+  vim.notify = function() end
+  vim.ui.select = function(items, _, on_choice)
+    on_choice(items[1])
+  end
+  vim.fn.setreg = function(register, value)
+    clipboard[register] = value
+  end
+
+  vim.system = function(cmd, opts, on_exit)
+    if cmd[3] == 'ls' then
+      on_exit({
+        code = 0,
+        stdout = vim.json.encode({
+          {
+            id = 1,
+            tabs = {
+              {
+                id = 2,
+                title = 'codex',
+                windows = {
+                  {
+                    id = 10,
+                    title = 'codex',
+                    cwd = vim.uv.cwd(),
+                    foreground_processes = {
+                      {
+                        cmdline = { 'codex' },
+                        cwd = vim.uv.cwd(),
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        stderr = '',
+      })
+    elseif cmd[3] == 'send-text' then
+      sent[#sent + 1] = opts.stdin
+      on_exit({ code = 0, stdout = '', stderr = '' })
+    else
+      error('unexpected command: ' .. table.concat(cmd, ' '))
+    end
+
+    return {
+      wait = function()
+        return { code = 0, stdout = '', stderr = '' }
+      end,
+    }
+  end
+
+  nvim_ctx.send_selection({})
+
+  vim.wait(100, function()
+    return #sent == 1
+  end)
+
+  eq(sent[1], '@tests/tmp-send-normal.lua')
+  eq(clipboard['+'], '@tests/tmp-send-normal.lua')
 
   vim.system = original_system
   vim.notify = original_notify

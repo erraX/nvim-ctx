@@ -1,8 +1,8 @@
 local M = {}
 
 local default_formatters = {
-  codex = '@{{path}}#{{range}}',
-  claude = '@{{path}}#{{range}}',
+  codex = '@{{path}}{{line_suffix}}',
+  claude = '@{{path}}{{line_suffix}}',
 }
 
 M.defaults = {
