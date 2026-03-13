@@ -9,7 +9,16 @@ M._state = {
 }
 
 local function notify(message, level)
-  vim.notify(message, level or vim.log.levels.INFO, { title = 'nvim-ctx' })
+  local function emit()
+    vim.notify(message, level or vim.log.levels.INFO, { title = 'nvim-ctx' })
+  end
+
+  if vim.in_fast_event() then
+    vim.schedule(emit)
+    return
+  end
+
+  emit()
 end
 
 local function normalize_path(path)
