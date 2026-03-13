@@ -163,6 +163,29 @@ local function ensure_named_file(bufname)
   return bufname
 end
 
+local function copy_to_clipboard(text)
+  local clipboard = M._state.config.clipboard or {}
+  if clipboard.enabled == false then
+    return false, nil
+  end
+
+  local register = clipboard.register or '+'
+  local ok, err = pcall(vim.fn.setreg, register, text)
+  if not ok then
+    return false, err
+  end
+
+  return true, nil
+end
+
+local function transport_error_message(message, copied_to_clipboard)
+  if copied_to_clipboard then
+    return string.format('%s; reference copied to clipboard', message)
+  end
+
+  return message
+end
+
 local function ensure_target(callback)
   if M._state.target then
     kitty.window_exists(M._state.target.id, M._state.config.kitty, function(exists, err)
@@ -254,14 +277,19 @@ function M.send_selection(opts)
     return
   end
 
+  local copied_to_clipboard, clipboard_err = copy_to_clipboard(reference)
+  if clipboard_err then
+    notify('failed to copy reference to clipboard: ' .. clipboard_err, vim.log.levels.WARN)
+  end
+
   ensure_target(function(target, target_err)
     if not target then
       if target_err ~= 'selection cancelled' then
         local guidance = 'kitty remote control unavailable; enable allow_remote_control yes and configure listen_on or KITTY_LISTEN_ON if needed'
         if target_err:find('kitty', 1, true) then
-          notify(guidance, vim.log.levels.ERROR)
+          notify(transport_error_message(guidance, copied_to_clipboard), vim.log.levels.ERROR)
         else
-          notify(target_err, vim.log.levels.ERROR)
+          notify(transport_error_message(target_err, copied_to_clipboard), vim.log.levels.ERROR)
         end
       end
       return
@@ -270,7 +298,7 @@ function M.send_selection(opts)
     kitty.send_text(target.id, reference, M._state.config.kitty, function(ok, send_err)
       if not ok then
         M._state.target = nil
-        notify(send_err, vim.log.levels.ERROR)
+        notify(transport_error_message(send_err, copied_to_clipboard), vim.log.levels.ERROR)
         return
       end
 
@@ -287,6 +315,7 @@ M._test = {
   resolve_path = resolve_path,
   resolve_selection = resolve_selection,
   find_git_root = find_git_root,
+  transport_error_message = transport_error_message,
   reset_state = function()
     M._state.target = nil
     M._state.config = config.merge()

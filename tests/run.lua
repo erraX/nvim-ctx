@@ -173,10 +173,15 @@ test('send_selection reuses cached kitty target and sends reference text', funct
   local original_system = vim.system
   local original_notify = vim.notify
   local original_select = vim.ui.select
+  local original_setreg = vim.fn.setreg
+  local clipboard = {}
 
   vim.notify = function() end
   vim.ui.select = function(items, _, on_choice)
     on_choice(items[1])
+  end
+  vim.fn.setreg = function(register, value)
+    clipboard[register] = value
   end
 
   vim.system = function(cmd, opts, on_exit)
@@ -264,11 +269,13 @@ test('send_selection reuses cached kitty target and sends reference text', funct
   end)
 
   eq(sent[1], '@tests/tmp-send.lua#2-3')
+  eq(clipboard['+'], '@tests/tmp-send.lua#2-3')
   ok(nvim_ctx._state.target ~= nil, 'target should be cached after selection')
 
   vim.system = original_system
   vim.notify = original_notify
   vim.ui.select = original_select
+  vim.fn.setreg = original_setreg
   vim.cmd.bdelete({ bang = true })
   vim.fn.delete(temp)
 end)

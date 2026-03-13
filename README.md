@@ -8,6 +8,8 @@ Default output:
 @path/to/file#12-18
 ```
 
+The generated reference is also copied to the system clipboard by default, so you can paste it manually if `kitty` delivery fails.
+
 ## Requirements
 
 - Neovim `0.10+`
@@ -68,6 +70,10 @@ Clear the cached target:
 require('nvim-ctx').setup({
   agent = 'codex',
   path_mode = 'git',
+  clipboard = {
+    enabled = true,
+    register = '+',
+  },
   formatters = {
     codex = '@{{path}}#{{range}}',
     claude = '@{{path}}#{{range}}',

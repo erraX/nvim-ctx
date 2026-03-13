@@ -9,6 +9,10 @@ M.defaults = {
   agent = 'codex',
   formatters = default_formatters,
   path_mode = 'git',
+  clipboard = {
+    enabled = true,
+    register = '+',
+  },
   kitty = {
     listen_on = nil,
   },
