@@ -7,10 +7,14 @@ vim.g.loaded_nvim_ctx = 1
 local nvim_ctx = require('nvim-ctx')
 
 vim.api.nvim_create_user_command('NvimCtxSend', function(args)
-  nvim_ctx.send_selection({
-    line1 = args.line1,
-    line2 = args.line2,
-  })
+  local opts = {}
+
+  if args.range > 0 then
+    opts.line1 = args.line1
+    opts.line2 = args.line2
+  end
+
+  nvim_ctx.send_selection(opts)
 end, {
   desc = 'Send the current visual selection as agent context',
   range = true,

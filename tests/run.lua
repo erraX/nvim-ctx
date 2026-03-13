@@ -368,6 +368,88 @@ test('send_selection sends file-only context in normal mode', function()
   vim.fn.delete(temp)
 end)
 
+test('NvimCtxSend command ignores implicit current-line range in normal mode', function()
+  nvim_ctx._test.reset_state()
+
+  local temp = vim.fs.joinpath(vim.uv.cwd(), 'tests', 'tmp-command-send.lua')
+  vim.fn.writefile({ 'one', 'two', 'three' }, temp)
+  vim.cmd.edit(temp)
+  vim.api.nvim_win_set_cursor(0, { 3, 0 })
+  vim.api.nvim_buf_del_mark(0, '<')
+  vim.api.nvim_buf_del_mark(0, '>')
+
+  local sent = {}
+  local original_system = vim.system
+  local original_notify = vim.notify
+  local original_select = vim.ui.select
+  local original_setreg = vim.fn.setreg
+
+  vim.notify = function() end
+  vim.ui.select = function(items, _, on_choice)
+    on_choice(items[1])
+  end
+  vim.fn.setreg = function() end
+
+  vim.system = function(cmd, opts, on_exit)
+    if cmd[3] == 'ls' then
+      on_exit({
+        code = 0,
+        stdout = vim.json.encode({
+          {
+            id = 1,
+            tabs = {
+              {
+                id = 2,
+                title = 'codex',
+                windows = {
+                  {
+                    id = 10,
+                    title = 'codex',
+                    cwd = vim.uv.cwd(),
+                    foreground_processes = {
+                      {
+                        cmdline = { 'codex' },
+                        cwd = vim.uv.cwd(),
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        stderr = '',
+      })
+    elseif cmd[3] == 'send-text' then
+      sent[#sent + 1] = opts.stdin
+      on_exit({ code = 0, stdout = '', stderr = '' })
+    else
+      error('unexpected command: ' .. table.concat(cmd, ' '))
+    end
+
+    return {
+      wait = function()
+        return { code = 0, stdout = '', stderr = '' }
+      end,
+    }
+  end
+
+  vim.cmd.NvimCtxSend()
+
+  vim.wait(100, function()
+    return #sent == 1
+  end)
+
+  eq(sent[1], '@tests/tmp-command-send.lua')
+
+  vim.system = original_system
+  vim.notify = original_notify
+  vim.ui.select = original_select
+  vim.fn.setreg = original_setreg
+  vim.cmd.bdelete({ bang = true })
+  vim.fn.delete(temp)
+end)
+
 if results.failed > 0 then
   error(string.format('%d tests failed, %d passed', results.failed, results.passed))
 end
