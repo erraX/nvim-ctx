@@ -112,6 +112,19 @@ test('resolve_selection uses explicit command range', function()
   eq(end_line, 8)
 end)
 
+test('resolve_selection falls back to current line in normal mode', function()
+  vim.cmd.enew()
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'one', 'two', 'three' })
+  vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+  local start_line, end_line = nvim_ctx._test.resolve_selection({})
+
+  eq(start_line, 2)
+  eq(end_line, 2)
+
+  vim.cmd.bdelete({ bang = true })
+end)
+
 test('flatten_windows prioritizes codex and claude processes', function()
   local tree = {
     {

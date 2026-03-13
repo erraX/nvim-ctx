@@ -122,7 +122,13 @@ local function resolve_selection(opts)
     return start_line, end_line
   end
 
-  return selection_from_marks()
+  local start_line, end_line = selection_from_marks()
+  if start_line and end_line then
+    return start_line, end_line
+  end
+
+  local current_line = vim.api.nvim_win_get_cursor(0)[1]
+  return current_line, current_line
 end
 
 local function build_reference(bufname, start_line, end_line, opts)
